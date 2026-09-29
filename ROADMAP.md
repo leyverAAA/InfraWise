@@ -212,7 +212,9 @@ def get_explainer() -> AIExplainer: ...
 
 ---
 
-## Fase 4 — Frontend + demo pública
+## Fase 4 — Frontend + demo pública *(implementada; despliegue público pendiente)*
+
+**Resultado verificado:** frontend Next.js funcional con formulario de `Requirements`, validación cliente, integración con la API, Mermaid, costos, `ScoreCard`, decisiones y diseño responsive. `npm run lint`, `npm run typecheck` y `npm run build` pasan. El despliegue público queda pendiente porque requiere un proveedor y credenciales externas. El detalle está en [`PHASE4_REPORT.md`](PHASE4_REPORT.md).
 
 **Objetivo:** que cualquiera con un link pueda usar la herramienta sin
 clonar el repo.

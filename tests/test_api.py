@@ -100,6 +100,19 @@ def test_provider_failure_falls_back_without_failing_request(client, monkeypatch
     assert response.json()["decisions"]
 
 
+def test_cors_allows_configured_frontend_origin(client):
+    response = client.options(
+        "/architectures",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
 def test_missing_architecture_diagram_returns_404(client):
     response = client.get("/architectures/missing/diagram")
 

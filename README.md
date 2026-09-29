@@ -6,7 +6,7 @@
 
 **Convierte requisitos de negocio en una arquitectura Cloud justificable, reproducible y con costo estimado.**
 
-[![Fase](https://img.shields.io/badge/fase-3%20%2F%205%20implementada-4EAA25)](ROADMAP.md)
+[![Fase](https://img.shields.io/badge/fase-4%20%2F%205%20implementada-4EAA25)](ROADMAP.md)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![FastAPI](https://img.shields.io/badge/api-FastAPI-fase%202-009688?logo=fastapi&logoColor=white)](ROADMAP.md)
 [![Terraform](https://img.shields.io/badge/export-Terraform-fase%205-844FBA?logo=terraform&logoColor=white)](ROADMAP.md)
@@ -22,7 +22,7 @@
 
 El núcleo de dominio vive en módulos Python separados —esquema, motor de reglas y motor de costos— y se comunica mediante **modelos tipados** (`Requirements`, `CatalogService`, `ArchSpec`). La API y la persistencia son una capa externa: el dominio sigue sin llamadas de red ni SDK de proveedor, y la misma entrada produce la misma arquitectura.
 
-> **Importante:** este es un proyecto de aprendizaje en fase temprana. La Fase 3 ya añade explicaciones con Ollama y un fallback determinista sin red. El README documenta lo que **realmente corre hoy** y separa explícitamente lo pendiente; la ejecución de Docker queda pendiente de validar cuando el daemon esté disponible.
+> **Importante:** este es un proyecto de aprendizaje en fase temprana. La Fase 4 ya incluye un frontend funcional para generar, visualizar y explicar arquitecturas. El README documenta lo que **realmente corre hoy** y separa explícitamente lo pendiente, incluido el despliegue público.
 
 ---
 
@@ -36,6 +36,7 @@ El núcleo de dominio vive en módulos Python separados —esquema, motor de reg
 - [Flujo operativo](#flujo-operativo)
 - [API HTTP](#api-http)
 - [IA local y fallback](#ia-local-y-fallback)
+- [Frontend](#frontend)
 - [Docker y Compose](#docker-y-compose)
 - [Tecnologías](#tecnologías)
 - [Seguridad](#seguridad)
@@ -97,7 +98,7 @@ Demostrar que un motor de arquitectura Cloud puede ser:
 │ Pydantic     │ Determinista │ 11 servicios│ API HTTP         │
 │ schemas      │ rule engine  │ catálogo AWS│ + Mermaid        │
 ├──────────────┼──────────────┼──────────────┼──────────────────┤
-│ 3 modelos    │ Presupuesto  │ ScoreCard    │ 34 tests         │
+│ 3 modelos    │ Presupuesto  │ ScoreCard    │ 35 tests         │
 │ de precio    │ validado     │ explicable   │ 91% coverage     │
 └──────────────┴──────────────┴──────────────┴──────────────────┘
 ```
@@ -242,10 +243,11 @@ InfraWise/
 │   ├── architecture.example.json  # el golden fixture ($107.51)
 │   └── _generate_examples.py      # regenera los fixtures (solo stdlib)
 │
-├── tests/                         # ✅ 28 TESTS, 94% COVERAGE total de Fase 2
+├── tests/                         # ✅ 35 TESTS, 91% COVERAGE backend
 │   ├── test_cost_engine.py        # los 3 modelos de precio + casos borde
 │   ├── test_api.py                # endpoints, validación y persistencia SQLite
 │   ├── test_diagram.py             # nodos, conexiones y escaping Mermaid
+│   ├── test_ai.py                 # providers, prompt y fallback
 │   └── test_rule_engine.py        # golden fixture, reglas, property test
 │
 ├── api/main.py                    # ✅ FASE 2 — endpoints FastAPI
@@ -257,7 +259,13 @@ InfraWise/
 │   ├── template_provider.py       # ✅ fallback determinista en español
 │   └── factory.py                 # ✅ selección + healthcheck + fallback
 ├── export/terraform.py            # ⬜ FASE 5 — ArchSpec → .tf (vacío)
-├── frontend/                      # ⬜ FASE 4 — Next.js (vacío)
+├── frontend/                      # ✅ FASE 4 — Next.js + Mermaid
+│   ├── app/page.tsx               # formulario, resultados y decisiones
+│   ├── app/globals.css             # sistema visual responsive
+│   ├── lib/types.ts                # contrato TypeScript de API
+│   ├── lib/validation.ts           # validación cliente de Requirements
+│   ├── package.json                # scripts lint, typecheck y build
+│   └── package-lock.json           # dependencias npm bloqueadas
 ├── Dockerfile                     # ✅ Python 3.12, healthcheck, usuario no root
 ├── docker-compose.yml              # ✅ API + PostgreSQL 16 + volumen persistente
 └── .github/workflows/ci.yml        # ✅ lint, tests, Compose config y build
@@ -281,7 +289,7 @@ flowchart TD
     SPEC --> DIAG["Mermaid<br/><i>diagram/</i> ✅"]
     SPEC --> EXPL["AI Explainer<br/><i>ai/</i> ✅ Ollama/template"]
     SPEC --> TF["Terraform .tf<br/><i>export/</i> ⬜"]
-    SPEC --> UI["Frontend<br/><i>frontend/</i> ⬜"]
+    SPEC --> UI["Frontend<br/><i>frontend/</i> ✅ Next.js"]
     REQS -.-> API["FastAPI<br/><i>api/</i> ✅"]
     API --> DB["PostgreSQL / SQLite<br/><i>api/db.py</i> ✅"]
 ```
@@ -347,7 +355,7 @@ Si la lista viene vacía o incompleta, el problema está en los requisitos (capa
 | SQLAlchemy `>=2,<3` | Persistencia de snapshots `ArchSpec`. |
 | Uvicorn | Servidor ASGI local y de contenedor. |
 | Psycopg | Driver PostgreSQL para Compose. |
-| Pytest `>=8,<9` | Suite de 34 tests, incluido un property test con semilla fija. |
+| Pytest `>=8,<9` | Suite de 35 tests, incluido un property test con semilla fija. |
 | Pytest-cov `>=5,<6` | Reporte de cobertura de `engine`, `api`, `diagram`, `schema` e `ai`. |
 | Ruff `>=0.6,<1` | Lint. Reglas `E`, `F`, `I`, `UP`, `B`. Línea de 100. |
 | Black `>=24,<26` | Formato. Línea de 100, `py311`. |
@@ -356,7 +364,8 @@ Si la lista viene vacía o incompleta, el problema está en los requisitos (capa
 | Docker + Compose | Fase 2 — API + PostgreSQL reproducibles |
 | GitHub Actions | Quality gates y build de imagen |
 | Ollama | Fase 3 — explicar `decisions` con un modelo local opcional |
-| Next.js + React Flow | ⬜ Fase 4 — formulario y editor visual de arquitecturas |
+| Next.js `16` + React | Fase 4 — formulario responsive y resultados interactivos |
+| Mermaid `12` | Fase 4 — renderizado del diagrama recibido de la API |
 | Terraform | ⬜ Fase 5 — exportar el `ArchSpec` a `.tf` |
 
 > El dominio mantiene una dependencia mínima y pura (`pydantic`). FastAPI, SQLAlchemy, Uvicorn y Psycopg pertenecen a la capa externa de API/persistencia; Ruff, Black, Pytest y uv sostienen los quality gates.
@@ -367,8 +376,8 @@ Si la lista viene vacía o incompleta, el problema está en los requisitos (capa
 
 - **Sin llamadas de red en el dominio.** `engine/` y `schema/` no importan ningún SDK de AWS, ni `boto3`, ni `requests`. Eso elimina de raíz la clase de problemas donde un test necesita credenciales o una red inestable. La red queda limitada a la capa HTTP y a la conexión configurable de persistencia.
 - **Sin secretos en el repositorio.** `.env` y `.env.*` están en `.gitignore` (con `!.env.example` como excepción explícita). No hay claves, tokens ni credenciales AWS en el código.
-- **Contraseñas y datos sensibles como `SecretStr`.** Cuando la Fase 4 exponga la API, los campos de contraseña se tipan como `SecretStr` para que Pydantic los redacte en logs y en `model_dump()`.
-- **`CORS` sin comodines en producción.** La API actual no habilita CORS todavía; la Fase 4 deberá permitir explícitamente el dominio del frontend y no usar `allow_origins=["*"]`.
+- **Contraseñas y datos sensibles como `SecretStr`.** Si aparecen campos sensibles, deben tiparse como `SecretStr` para que Pydantic los redacte en logs y en `model_dump()`.
+- **`CORS` sin comodines en producción.** FastAPI permite explícitamente `FRONTEND_ORIGINS` y nunca usa `allow_origins=["*"]`.
 - **Contenedor con menor privilegio.** El Dockerfile ejecuta Uvicorn como `appuser`, usa una imagen slim y excluye secretos y bases locales mediante `.dockerignore`.
 - **Credenciales de desarrollo visibles.** Compose usa `infrawise_dev_only` como valor local overrideable por `.env`; no debe reutilizarse en producción.
 - **Sin datos personales de usuarios.** El modelo `Requirements` describe una aplicación, nunca a una persona. No hay PII en la base de datos.
@@ -423,7 +432,7 @@ docker compose config --quiet                         # Compose válido
 
 ## Testing
 
-34 tests, 91 % de cobertura sobre 472 statements. La validación de dominio, API y providers es local y reproducible; **no requiere credenciales de AWS, PostgreSQL ni Ollama para la suite**: los tests de persistencia usan SQLite en memoria y el provider de templates no usa red.
+35 tests, 91 % de cobertura sobre 476 statements. La validación de dominio, API y providers es local y reproducible; **no requiere credenciales de AWS, PostgreSQL ni Ollama para la suite**: los tests de persistencia usan SQLite en memoria y el provider de templates no usa red.
 
 ```bash
 uv run --extra dev pytest --cov=engine --cov=api --cov=diagram --cov=schema --cov=ai --cov-report=term-missing -q
@@ -433,9 +442,20 @@ uv run --extra dev pytest --cov=engine --cov=api --cov=diagram --cov=schema --co
 | :--- | :--- |
 | `tests/test_cost_engine.py` | Los 3 modelos de precio, `count <= 0`, `per_unit` sin `size_gb`, `per_unit` sin `unit_price_usd`. |
 | `tests/test_rule_engine.py` | Golden fixture, filtro por capacidad/disponibilidad, selección más barata, las 6 categorías, conexiones, cache/CDN, presupuesto insuficiente, catálogo insuficiente para `CRITICAL`, property test. |
-| `tests/test_api.py` | POST/GET, persistencia, `422` de dominio y validación, `404`, health del flujo y endpoint de diagrama. |
+| `tests/test_api.py` | POST/GET, persistencia, `422` de dominio y validación, `404`, health, CORS y endpoint de diagrama. |
 | `tests/test_diagram.py` | Nodos, conexiones, encabezado Mermaid y escaping de etiquetas. |
 | `tests/test_ai.py` | Contrato de providers, prompt acotado, fallback de factory y respuestas inválidas de Ollama. |
+
+La aplicación frontend se valida con sus propios quality gates:
+
+```bash
+cd frontend
+npm run lint
+npm run typecheck
+npm run build
+```
+
+La build de producción genera las rutas estáticas `/` y `/_not-found`.
 
 Tres pruebas merecen atención porque son la especificación ejecutable del dominio:
 
@@ -462,7 +482,7 @@ La semilla fija es lo que hace que CI sea determinista: 50 casos property-based 
 **Requisitos:** Python `3.11` o `3.12`, y [uv](https://docs.astral.sh/uv/).
 
 ```bash
-git clone <tu-url-del-repo>.git
+git clone https://github.com/leyverAAA/InfraWise
 cd InfraWise
 uv sync --extra dev       # crea .venv, instala API, persistencia y herramientas de calidad
 ```
@@ -486,6 +506,7 @@ pip install -e ".[dev]"
 ---
 
 ## Uso rápido
+
 
 ```bash
 # 1. Ejecuta la suite
@@ -717,6 +738,56 @@ La API vuelve a intentar el fallback ante una falla durante la llamada, incluso 
 
 ---
 
+## Frontend
+
+La Fase 4 agrega una interfaz Next.js que consume la API existente sin duplicar el modelo de dominio.
+
+### Flujo de usuario
+
+```text
+Requirements → formulario validado → POST /architectures
+                                          │
+                                          ▼
+                  ArchSpec + Mermaid + ScoreCard + Decisions
+```
+
+La pantalla incluye:
+
+- formulario para los nueve campos de `Requirements`;
+- selects alineados con los enums del backend;
+- validación cliente de usuarios, RPM, almacenamiento, presupuesto y región;
+- configuración de API mediante `NEXT_PUBLIC_API_URL`;
+- diagrama Mermaid renderizado desde `/architectures/{id}/diagram`;
+- tabla de costos por componente y total mensual;
+- `ScoreCard` con complejidad, escalabilidad, disponibilidad y carga operativa;
+- decisiones explicadas por el provider Ollama o por el fallback de templates;
+- diseño responsive para escritorio y móvil;
+- mensajes de error para validación, presupuesto insuficiente y API no disponible.
+
+Desarrollo local:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Abre `http://localhost:3000`. La API por defecto es `http://localhost:8000`; para cambiarla:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
+```
+
+El backend debe permitir el origen del frontend:
+
+```bash
+FRONTEND_ORIGINS=http://localhost:3000
+```
+
+La interfaz usa Mermaid de forma dinámica en el cliente, por lo que el renderizador no bloquea la generación estática de Next.js.
+
+---
+
 ## Docker y Compose
 
 La topología de desarrollo contiene dos servicios:
@@ -754,10 +825,11 @@ El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) ejecuta en ca
 1. instala Python 3.12 y dependencias bloqueadas con `uv sync --extra dev --locked`;
 2. ejecuta `ruff check .`;
 3. verifica formato con `black --check .`;
-4. ejecuta los 34 tests con cobertura de dominio, API, Mermaid e IA usando `AI_PROVIDER=template` para mantener CI offline;
+4. ejecuta los 35 tests con cobertura de dominio, API, Mermaid e IA usando `AI_PROVIDER=template` para mantener CI offline;
 5. compila los módulos Python;
 6. valida `docker compose config --quiet`;
-7. construye la imagen Docker etiquetada con el SHA del commit.
+7. construye la imagen Docker etiquetada con el SHA del commit;
+8. en un job paralelo instala Node 22 con `npm ci` y ejecuta lint, typecheck y build del frontend.
 
 El workflow usa permisos mínimos de lectura, cache de uv y cancela ejecuciones obsoletas de la misma rama. El build de imagen se ejecuta en GitHub Actions, donde el daemon Docker del runner sí está disponible; en desarrollo local basta con ejecutar los mismos comandos de los quality gates.
 
@@ -765,7 +837,7 @@ El workflow usa permisos mínimos de lectura, cache de uv y cancela ejecuciones 
 
 ## Estado del proyecto
 
-**Fase 3 de 5 implementada.** El núcleo, la API y la capa de explicaciones están construidos, probados y documentados. La validación de `docker compose up` queda pendiente de ejecutar con Docker Desktop activo.
+**Fase 4 de 5 implementada.** El núcleo, la API, la capa de explicaciones y el frontend están construidos, probados y documentados. El despliegue público y la validación de `docker compose up` quedan pendientes de ejecutar en un entorno externo.
 
 | Fase | Alcance | Estado |
 | :--- | :--- | :--- |
@@ -773,7 +845,7 @@ El workflow usa permisos mínimos de lectura, cache de uv y cancela ejecuciones 
 | 1 — Rule Engine + Cost Engine | `recommend()` puro, determinista y testeado | ✅ Hecho — ver [`PHASE1_REPORT.md`](PHASE1_REPORT.md) |
 | 2 — API + diagrama | FastAPI, persistencia, `ArchSpec` → Mermaid, Docker Compose | 🟡 Implementada — ver [`PHASE2_REPORT.md`](PHASE2_REPORT.md) |
 | 3 — IA local | `AIExplainer`, Ollama opcional, fallback de templates y API integrada | 🟡 Implementada — ver [`PHASE3_REPORT.md`](PHASE3_REPORT.md) |
-| 4 — Frontend | Next.js, formulario, diagrama interactivo, demo pública | ⬜ Pendiente |
+| 4 — Frontend | Next.js, formulario, diagrama interactivo, costos y decisiones | 🟡 Implementada — ver [`PHASE4_REPORT.md`](PHASE4_REPORT.md) |
 | 5 — CI/CD + Terraform export | Quality gates CI implementados; `ArchSpec` → `.tf` pendiente | 🟡 CI inicial implementado |
 
 > **Honestidad sobre "FinOps":** hoy no hay FinOps real. No hay ingesta de datos de consumo, ni rightsizing basado en métricas, ni forecasting. Lo que existe es un **estimador de costo declarativo** sobre precios de catálogo: la arquitectura se evalúa contra los requisitos que el usuario declara, no contra telemetría de producción. El término "FinOps" describe la dirección del proyecto, no lo que ya sabe hacer. Esto está también anotado en el [ROADMAP](ROADMAP.md#roadmap-v2--stretch--documentado-no-bloqueante).
@@ -781,7 +853,7 @@ El workflow usa permisos mínimos de lectura, cache de uv y cancela ejecuciones 
 **Módulos aún pendientes** — existen como marcadores de posición, no como funcionalidad:
 
 ```text
-export/terraform.py · frontend/
+export/terraform.py
 ```
 
 ---
@@ -811,6 +883,8 @@ La API usa estas variables de **entorno**. Cada una tiene un valor por defecto q
 | `POSTGRES_USER` | 2 | `infrawise` | Usuario de PostgreSQL en Compose |
 | `POSTGRES_PASSWORD` | 2 | `infrawise_dev_only` | Credencial local; reemplazar en entornos reales |
 | `AI_PROVIDER` | 3 | `ollama` | Selecciona el provider de explicaciones |
+| `FRONTEND_ORIGINS` | 4 | `http://localhost:3000` | Orígenes CORS permitidos por la API |
+| `NEXT_PUBLIC_API_URL` | 4 | `http://localhost:8000` | URL de API consumida por Next.js |
 
 ### Ajustar el catálogo
 
@@ -835,6 +909,7 @@ Si agregas un servicio, el test dorado `test_matches_example_fixture` seguirá p
 | [`PHASE1_REPORT.md`](PHASE1_REPORT.md) | Evidencia de la Fase 1: cambios, justificación, comandos ejecutados y pendientes. |
 | [`PHASE2_REPORT.md`](PHASE2_REPORT.md) | Evidencia de la Fase 2: API, persistencia, Mermaid, Docker, pruebas y limitaciones. |
 | [`PHASE3_REPORT.md`](PHASE3_REPORT.md) | Evidencia de la Fase 3: providers IA, contrato Ollama, fallback y API integrada. |
+| [`PHASE4_REPORT.md`](PHASE4_REPORT.md) | Evidencia de la Fase 4: frontend, validación, Mermaid, CORS, builds y limitaciones de despliegue. |
 | [`schema/requirements.py`](schema/requirements.py) | La entrada del sistema y sus 4 enums. |
 | [`schema/catalog.py`](schema/catalog.py) | `CatalogService`, `PricingModel`, `ComponentCategory`. |
 | [`schema/architecture.py`](schema/architecture.py) | `ArchSpec` y sus 4 submodelos. |
@@ -845,6 +920,7 @@ Si agregas un servicio, el test dorado `test_matches_example_fixture` seguirá p
 | [`diagram/mermaid.py`](diagram/mermaid.py) | Serialización pura de `ArchSpec` a Mermaid. |
 | [`ai/base.py`](ai/base.py) · [`ai/factory.py`](ai/factory.py) | Contrato `AIExplainer`, selección de provider y fallback. |
 | [`ai/ollama_provider.py`](ai/ollama_provider.py) · [`ai/template_provider.py`](ai/template_provider.py) | Provider Ollama validado y explicación determinista sin red. |
+| [`frontend/`](frontend/) | Aplicación Next.js, formulario, resultados, Mermaid y scripts de calidad. |
 | [`Dockerfile`](Dockerfile) · [`docker-compose.yml`](docker-compose.yml) | Imagen API y PostgreSQL 16 con volumen/healthcheck. |
 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Quality gates y build de imagen en GitHub Actions. |
 | [`tests/`](tests/) | La especificación ejecutable del dominio. |
@@ -870,6 +946,6 @@ Si tienes alguna pregunta o feedback, ¡no dudes en escribirme!
 
 `Python · Pydantic · FastAPI · SQLAlchemy · Docker · Mermaid · Ollama · Terraform`
 
-*Fase 3 de 5 — explicaciones Ollama/template implementadas; Docker pendiente de validación local*
+*Fase 4 de 5 — frontend funcional; despliegue público pendiente*
 
 </div>
