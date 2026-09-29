@@ -6,13 +6,13 @@
 
 **Convierte requisitos de negocio en una arquitectura Cloud justificable, reproducible y con costo estimado.**
 
-[![Fase](https://img.shields.io/badge/fase-1%20%2F%205%20completa-4EAA25)](ROADMAP.md)
+[![Fase](https://img.shields.io/badge/fase-2%20%2F%205%20implementada-4EAA25)](ROADMAP.md)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![FastAPI](https://img.shields.io/badge/api-FastAPI-fase%202-009688?logo=fastapi&logoColor=white)](ROADMAP.md)
 [![Terraform](https://img.shields.io/badge/export-Terraform-fase%205-844FBA?logo=terraform&logoColor=white)](ROADMAP.md)
 [![AI](https://img.shields.io/badge/ai-Ollama%20%2B%20fallback-fase%203-4EAA25)](ROADMAP.md)
 [![Determinista](https://img.shields.io/badge/motor-100%25%20determinista-557C94)](engine/rule_engine.py)
-[![Tests](https://img.shields.io/badge/tests-20%20pasando-4C1?logo=pytest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/tests-28%20pasando-4C1?logo=pytest&logoColor=white)](tests/)
 
 </div>
 
@@ -20,9 +20,9 @@
 
 **InfraWise** es un motor determinista que convierte los requisitos de una aplicación —usuarios, tráfico, motor de base de datos, disponibilidad, presupuesto y optimización— en una **arquitectura Cloud concreta**, con costo mensual estimado, conexiones, un score explicable y una justificación por cada componente.
 
-Cada capa vive en su propio módulo Python —esquema, motor de reglas, motor de costos— y se comunican únicamente mediante **modelos tipados** (`Requirements`, `CatalogService`, `ArchSpec`). Sin llamadas de red, sin SDK de proveedor, sin aleatoriedad: la misma entrada produce siempre la misma salida.
+El núcleo de dominio vive en módulos Python separados —esquema, motor de reglas y motor de costos— y se comunica mediante **modelos tipados** (`Requirements`, `CatalogService`, `ArchSpec`). La API y la persistencia son una capa externa: el dominio sigue sin llamadas de red ni SDK de proveedor, y la misma entrada produce la misma arquitectura.
 
-> **Importante:** este es un proyecto de aprendizaje en fase temprana. La arquitectura nombrada en el roadmap todavía no está construida; el README documenta lo que **realmente corre hoy** y separa explícitamente lo pendiente.
+> **Importante:** este es un proyecto de aprendizaje en fase temprana. La Fase 2 ya expone el motor por HTTP, persiste `ArchSpec` y genera Mermaid. El README documenta lo que **realmente corre hoy** y separa explícitamente lo pendiente; la ejecución de Docker queda pendiente de validar cuando el daemon esté disponible.
 
 ---
 
@@ -34,12 +34,15 @@ Cada capa vive en su propio módulo Python —esquema, motor de reglas, motor de
 - [Estructura del proyecto](#estructura-del-proyecto)
 - [Arquitectura](#arquitectura)
 - [Flujo operativo](#flujo-operativo)
+- [API HTTP](#api-http)
+- [Docker y Compose](#docker-y-compose)
 - [Tecnologías](#tecnologías)
 - [Seguridad](#seguridad)
 - [Salidas y observabilidad](#salidas-y-observabilidad)
 - [Testing](#testing)
 - [Instalación](#instalación)
 - [Uso rápido](#uso-rápido)
+- [CI](#ci)
 - [Ejemplo real](#ejemplo-real)
 - [Estado del proyecto](#estado-del-proyecto)
 - [Configuración](#configuración)
@@ -90,11 +93,11 @@ Demostrar que un motor de arquitectura Cloud puede ser:
 ┌───────────────────────────────────────────────────────────────┐
 │                    PROJECT HIGHLIGHTS                        │
 ├──────────────┬──────────────┬──────────────┬──────────────────┤
-│ Pydantic     │ Determinista │ 11 servicios│ 6 categorías     │
-│ schemas      │ rule engine  │ catálogo AWS│ de componentes   │
+│ Pydantic     │ Determinista │ 11 servicios│ API HTTP         │
+│ schemas      │ rule engine  │ catálogo AWS│ + Mermaid        │
 ├──────────────┼──────────────┼──────────────┼──────────────────┤
-│ 3 modelos    │ Presupuesto  │ ScoreCard    │ 20 tests         │
-│ de precio    │ validado     │ explicable   │ 96% coverage     │
+│ 3 modelos    │ Presupuesto  │ ScoreCard    │ 28 tests         │
+│ de precio    │ validado     │ explicable   │ 94% coverage     │
 └──────────────┴──────────────┴──────────────┴──────────────────┘
 ```
 
@@ -174,6 +177,22 @@ recommend(req, catalog)             -> ArchSpec                  # la arquitectu
 | `availability_pct` | `99.5` standard · `99.9` high · `99.99` critical |
 | `operational_overhead` | Cuenta los servicios que requieren mantenimiento manual (hoy, EC2) |
 
+### API, persistencia y diagramas — Fase 2
+
+La capa HTTP reutiliza `recommend()` sin duplicar reglas de negocio:
+
+| Endpoint | Resultado |
+| :--- | :--- |
+| `POST /architectures` | Valida `Requirements`, genera, persiste y devuelve un `ArchSpec` con `201`. |
+| `GET /architectures/{id}` | Recupera el snapshot persistido o devuelve `404`. |
+| `GET /architectures/{id}/diagram` | Devuelve el diagrama Mermaid como `text/plain` o `404`. |
+| `GET /health` | Healthcheck mínimo para desarrollo y contenedores. |
+| `/docs` · `/openapi.json` | Documentación interactiva y contrato OpenAPI generado por FastAPI. |
+
+La persistencia usa una tabla `architectures` con `id`, `payload` JSON/JSONB y `created_at`. SQLite es el valor por defecto para desarrollo local; Compose utiliza PostgreSQL 16 mediante `DATABASE_URL`.
+
+`diagram/mermaid.py` mantiene el serializador como una función pura: no abre conexiones ni realiza I/O, y escapa etiquetas antes de producir los nodos y conexiones.
+
 ### Catálogo de ejemplo
 
 `examples/catalog.aws.sample.json` — 11 servicios AWS con precios de lista on-demand de `us-east-1` (2026), convertidos a mensual con 730 h/mes.
@@ -198,12 +217,14 @@ recommend(req, catalog)             -> ArchSpec                  # la arquitectu
 
 ```text
 InfraWise/
-├── .gitignore                     # .venv, caches, .coverage, .env
+├── .gitignore                     # caches, .env, secrets y bases locales
+├── .dockerignore                  # contexto Docker sin secretos ni artefactos
 ├── pyproject.toml                 # Dependencias, pytest, ruff, black
 ├── uv.lock                        # Grafo de dependencias fijado
 ├── README.md
 ├── ROADMAP.md                     # Fases 0–5, cada una con milestone
 ├── PHASE1_REPORT.md               # Evidencia de la Fase 1 (tests, cobertura, decisiones)
+├── PHASE2_REPORT.md               # Evidencia de API, persistencia, Mermaid y Compose
 │
 ├── schema/                        # ✅ CONTRATOS DEL DOMINIO
 │   ├── requirements.py            # Requirements + 4 enums
@@ -220,24 +241,27 @@ InfraWise/
 │   ├── architecture.example.json  # el golden fixture ($107.51)
 │   └── _generate_examples.py      # regenera los fixtures (solo stdlib)
 │
-├── tests/                         # ✅ 20 TESTS, 96% COVERAGE
+├── tests/                         # ✅ 28 TESTS, 94% COVERAGE total de Fase 2
 │   ├── test_cost_engine.py        # los 3 modelos de precio + casos borde
+│   ├── test_api.py                # endpoints, validación y persistencia SQLite
+│   ├── test_diagram.py             # nodos, conexiones y escaping Mermaid
 │   └── test_rule_engine.py        # golden fixture, reglas, property test
 │
-├── api/main.py                    # ⬜ FASE 2 — FastAPI (vacío)
-├── diagram/mermaid.py             # ⬜ FASE 2 — ArchSpec → Mermaid (vacío)
+├── api/main.py                    # ✅ FASE 2 — endpoints FastAPI
+├── api/db.py                      # ✅ SQLAlchemy + SQLite/PostgreSQL JSONB
+├── diagram/mermaid.py             # ✅ FASE 2 — ArchSpec → Mermaid
 ├── ai/
 │   ├── base.py                    # ⬜ FASE 3 — AIExplainer Protocol (vacío)
 │   ├── ollama_provider.py         # ⬜ FASE 3 — Ollama local (vacío)
 │   └── template_provider.py       # ⬜ FASE 3 — fallback sin red (vacío)
 ├── export/terraform.py            # ⬜ FASE 5 — ArchSpec → .tf (vacío)
 ├── frontend/                      # ⬜ FASE 4 — Next.js (vacío)
-├── Dockerfile                     # ⬜ FASE 2 (vacío)
-├── docker-compose.yml             # ⬜ FASE 2 (vacío)
-└── .github/workflows/ci.yml       # ⬜ FASE 5 (vacío)
+├── Dockerfile                     # ✅ Python 3.12, healthcheck, usuario no root
+├── docker-compose.yml              # ✅ API + PostgreSQL 16 + volumen persistente
+└── .github/workflows/ci.yml        # ✅ lint, tests, Compose config y build
 ```
 
-> ✅ construido y probado · ⬜ módulo reservado, aún vacío
+> ✅ construido y probado · 🟡 implementado pero con validación externa pendiente · ⬜ reservado
 
 ---
 
@@ -252,11 +276,12 @@ flowchart TD
     CAT --> RE["Rule Engine<br/><i>engine/rule_engine.py</i>"]
     RE --> CE["Cost Engine<br/><i>engine/cost_engine.py</i>"]
     CE --> SPEC["ArchSpec<br/><i>schema/architecture.py</i>"]
-    SPEC --> DIAG["Mermaid<br/><i>diagram/</i> ⬜"]
+    SPEC --> DIAG["Mermaid<br/><i>diagram/</i> ✅"]
     SPEC --> EXPL["AI Explainer<br/><i>ai/</i> ⬜"]
     SPEC --> TF["Terraform .tf<br/><i>export/</i> ⬜"]
     SPEC --> UI["Frontend<br/><i>frontend/</i> ⬜"]
-    REQS -.-> API["FastAPI<br/><i>api/</i> ⬜"]
+    REQS -.-> API["FastAPI<br/><i>api/</i> ✅"]
+    API --> DB["PostgreSQL / SQLite<br/><i>api/db.py</i> ✅"]
 ```
 
 ### Por qué un artefacto y no varios
@@ -270,10 +295,12 @@ Esa inmutabilidad es lo que después hace triviales dos cosas:
 
 ```mermaid
 flowchart LR
-    Code["Cambio en schema/ o engine/"] --> FMT["black --check<br/>ruff check"]
+    Code["Cambio en código o configuración"] --> FMT["black --check<br/>ruff check"]
     FMT --> VAL["pytest -q"]
-    VAL --> COV["pytest --cov=engine --cov=schema"]
-    COV --> GREEN{"¿Verde?"}
+    VAL --> COV["pytest --cov=engine --cov=api<br/>--cov=diagram --cov=schema"]
+    COV --> COMPOSE["docker compose config"]
+    COMPOSE --> IMAGE["docker build"]
+    IMAGE --> GREEN{"¿Verde?"}
     GREEN -->|Sí| Merge["Listo para review"]
     GREEN -->|No| Fix["Corregir"]
     Fix --> FMT
@@ -314,27 +341,34 @@ Si la lista viene vacía o incompleta, el problema está en los requisitos (capa
 | :--- | :--- |
 | Python `>=3.11,<3.13` | Lenguaje base. `StrEnum` y `datetime.UTC` exigen 3.11+. |
 | Pydantic `>=2.7,<3` | Validación y serialización de los 4 modelos del dominio. |
-| Pytest `>=8,<9` | Suite de 20 tests, incluido un property test con semilla fija. |
-| Pytest-cov `>=5,<6` | Reporte de cobertura de `engine` y `schema`. |
+| FastAPI `>=0.115,<0.120` | API HTTP, validación, OpenAPI y Swagger. |
+| SQLAlchemy `>=2,<3` | Persistencia de snapshots `ArchSpec`. |
+| Uvicorn | Servidor ASGI local y de contenedor. |
+| Psycopg | Driver PostgreSQL para Compose. |
+| Pytest `>=8,<9` | Suite de 28 tests, incluido un property test con semilla fija. |
+| Pytest-cov `>=5,<6` | Reporte de cobertura de `engine`, `api`, `diagram` y `schema`. |
 | Ruff `>=0.6,<1` | Lint. Reglas `E`, `F`, `I`, `UP`, `B`. Línea de 100. |
 | Black `>=24,<26` | Formato. Línea de 100, `py311`. |
 | Hatchling | Build backend del paquete `infrawise`. |
 | uv | Gestión de entorno y lockfile. |
-| FastAPI | ⬜ Fase 2 — exponer el motor por HTTP |
+| Docker + Compose | Fase 2 — API + PostgreSQL reproducibles |
+| GitHub Actions | Quality gates y build de imagen |
 | Ollama | ⬜ Fase 3 — redactar las `decisions` con un modelo local |
 | Next.js + React Flow | ⬜ Fase 4 — formulario y editor visual de arquitecturas |
 | Terraform | ⬜ Fase 5 — exportar el `ArchSpec` a `.tf` |
 
-> Las dependencias de runtime son **una sola**: `pydantic`. Todo lo demás es calidad o infraestructura. Esa es la consecuencia directa de mantener el dominio sin red.
+> El dominio mantiene una dependencia mínima y pura (`pydantic`). FastAPI, SQLAlchemy, Uvicorn y Psycopg pertenecen a la capa externa de API/persistencia; Ruff, Black, Pytest y uv sostienen los quality gates.
 
 ---
 
 ## Seguridad
 
-- **Sin llamadas de red en el dominio.** `engine/` y `schema/` no importan ningún SDK de AWS, ni `boto3`, ni `requests`. Eso elimina de raíz la clase de problemas donde un test necesita credenciales o una red inestable.
+- **Sin llamadas de red en el dominio.** `engine/` y `schema/` no importan ningún SDK de AWS, ni `boto3`, ni `requests`. Eso elimina de raíz la clase de problemas donde un test necesita credenciales o una red inestable. La red queda limitada a la capa HTTP y a la conexión configurable de persistencia.
 - **Sin secretos en el repositorio.** `.env` y `.env.*` están en `.gitignore` (con `!.env.example` como excepción explícita). No hay claves, tokens ni credenciales AWS en el código.
 - **Contraseñas y datos sensibles como `SecretStr`.** Cuando la Fase 4 exponga la API, los campos de contraseña se tipan como `SecretStr` para que Pydantic los redacte en logs y en `model_dump()`.
-- **`CORS` sin comodines en producción.** La Fase 4 documenta explícitamente que `allow_origins=["*"]` no se usa contra un dominio desplegado.
+- **`CORS` sin comodines en producción.** La API actual no habilita CORS todavía; la Fase 4 deberá permitir explícitamente el dominio del frontend y no usar `allow_origins=["*"]`.
+- **Contenedor con menor privilegio.** El Dockerfile ejecuta Uvicorn como `appuser`, usa una imagen slim y excluye secretos y bases locales mediante `.dockerignore`.
+- **Credenciales de desarrollo visibles.** Compose usa `infrawise_dev_only` como valor local overrideable por `.env`; no debe reutilizarse en producción.
 - **Sin datos personales de usuarios.** El modelo `Requirements` describe una aplicación, nunca a una persona. No hay PII en la base de datos.
 - **Presupuesto como puerta de seguridad.** Una arquitectura que excede el presupuesto declarado nunca se devuelve, ni siquiera "por si acaso". El error nombra la categoría y el faltante.
 - **Catálogo como datos, no como código.** Agregar un servicio o cambiar un precio es editar un JSON versionado y auditable, no desplegar código.
@@ -343,7 +377,7 @@ Si la lista viene vacía o incompleta, el problema está en los requisitos (capa
 
 ## Salidas y observabilidad
 
-`ArchSpec` es a la vez la salida y el registro de auditoría. Para inspeccionar una decisión sin pasar por el `recommend()` completo, llama al filtro directamente:
+`ArchSpec` es a la vez la salida y el registro de auditoría. Para inspeccionar una decisión sin pasar por el `recommend()` completo, llama al filtro directamente. Para inspeccionar una arquitectura guardada, usa la API o consulta el endpoint Mermaid:
 
 ```python
 # ¿Qué servicios de base de datos sobreviven al filtro con estos requisitos?
@@ -372,10 +406,13 @@ Esa lista es la explicación completa de por qué la base de datos no puede ser 
 Para el resto del sistema:
 
 ```bash
+curl http://localhost:8000/health
+curl http://localhost:8000/docs
 pytest -q                                              # estado del dominio
-pytest --cov=engine --cov=schema --cov-report=term-missing   # cobertura línea por línea
+pytest --cov=engine --cov=api --cov=diagram --cov=schema --cov-report=term-missing   # cobertura línea por línea
 ruff check .                                          # lint
 black --check .                                       # formato
+docker compose config --quiet                         # Compose válido
 ```
 
 `created_at` registra el momento en que se creó la instantánea; el `id` es un hash del contenido. Son deliberadamente independientes: el mismo contenido genera el mismo `id` aunque se genere en otra fecha.
@@ -384,16 +421,18 @@ black --check .                                       # formato
 
 ## Testing
 
-20 tests, 0.36 s, 96 % de cobertura sobre 241 statements. La validación es local, instantánea y **no requiere credenciales de AWS**.
+28 tests, 94 % de cobertura sobre 334 statements. La validación de dominio y API es local, reproducible y **no requiere credenciales de AWS ni PostgreSQL para la suite**: los tests de persistencia usan SQLite en memoria.
 
 ```bash
-uv run --extra dev pytest --cov=engine --cov=schema --cov-report=term-missing -q
+uv run --extra dev pytest --cov=engine --cov=api --cov=diagram --cov=schema --cov-report=term-missing -q
 ```
 
 | Archivo | Qué cubre |
 | :--- | :--- |
 | `tests/test_cost_engine.py` | Los 3 modelos de precio, `count <= 0`, `per_unit` sin `size_gb`, `per_unit` sin `unit_price_usd`. |
 | `tests/test_rule_engine.py` | Golden fixture, filtro por capacidad/disponibilidad, selección más barata, las 6 categorías, conexiones, cache/CDN, presupuesto insuficiente, catálogo insuficiente para `CRITICAL`, property test. |
+| `tests/test_api.py` | POST/GET, persistencia, `422` de dominio y validación, `404`, health del flujo y endpoint de diagrama. |
+| `tests/test_diagram.py` | Nodos, conexiones, encabezado Mermaid y escaping de etiquetas. |
 
 Tres pruebas merecen atención porque son la especificación ejecutable del dominio:
 
@@ -422,7 +461,7 @@ La semilla fija es lo que hace que CI sea determinista: 50 casos property-based 
 ```bash
 git clone <tu-url-del-repo>.git
 cd InfraWise
-uv sync --extra dev       # crea .venv, instala pydantic + herramientas de calidad
+uv sync --extra dev       # crea .venv, instala API, persistencia y herramientas de calidad
 ```
 
 > `uv.lock` fija el grafo de dependencias completo. Se commitea a propósito: es lo que garantiza que tu máquina, CI y un despliegue futuro ejecuten exactamente las mismas versiones.
@@ -456,6 +495,8 @@ uv run python examples/_generate_examples.py
 # 3. Quality gates antes de abrir un PR
 uv run --extra dev ruff check .
 uv run --extra dev black --check .
+uv run --extra dev pytest --cov=engine --cov=api --cov=diagram --cov=schema -q
+docker compose config --quiet
 ```
 
 Y para tu propia entrada, la superficie real del motor cabe en un archivo de 20 líneas — `playground.py`:
@@ -565,38 +606,125 @@ Tres decisiones que explican el resultado:
     availability=critical, usuarios=5000 y rpm=300"
 ```
 
-Ese último mensaje es el que la futura API convierte en `422` con una sugerencia accionable, en lugar de un `500` genérico.
+Ese último mensaje es el que la API convierte en `422` con una sugerencia accionable, en lugar de un `500` genérico.
+
+---
+
+## API HTTP
+
+La API se inicia en desarrollo con SQLite local:
+
+```bash
+uv run uvicorn api.main:app --reload
+```
+
+Después, abre [`http://localhost:8000/docs`](http://localhost:8000/docs) para probar el contrato OpenAPI.
+
+Crear una arquitectura usando el fixture del proyecto:
+
+```bash
+curl -X POST http://localhost:8000/architectures \
+  -H "Content-Type: application/json" \
+  --data @examples/requirements.example.json
+```
+
+La respuesta contiene el `id`, los componentes, conexiones, decisiones, score y costo total. El `id` es estable para la misma entrada; publicar de nuevo la misma recomendación actualiza el snapshot en lugar de crear una fila duplicada.
+
+```bash
+curl http://localhost:8000/architectures/<ID>
+curl http://localhost:8000/architectures/<ID>/diagram
+```
+
+Errores esperados:
+
+- `422`: requisitos inválidos o no existe una arquitectura viable dentro del catálogo/presupuesto.
+- `404`: no existe el `ArchSpec` solicitado.
+
+### Persistencia local
+
+Sin `DATABASE_URL`, la API usa `sqlite:///./infrawise.db`. Para PostgreSQL, configura por ejemplo:
+
+```bash
+DATABASE_URL=postgresql+psycopg://infrawise:infrawise_dev_only@localhost:5432/infrawise
+```
+
+El payload completo del `ArchSpec` se conserva en una columna JSON/JSONB para mantener el historial auditable sin duplicar todavía el modelo en muchas columnas.
+
+---
+
+## Docker y Compose
+
+La topología de desarrollo contiene dos servicios:
+
+```text
+api: FastAPI + Uvicorn :8000
+  │
+  └── DATABASE_URL → db
+                         PostgreSQL 16
+                         volumen postgres_data
+```
+
+Arranque recomendado:
+
+```bash
+docker compose config --quiet   # validar antes de levantar
+docker compose up --build
+```
+
+La API espera el healthcheck de PostgreSQL antes de iniciar. El Dockerfile usa `python:3.12-slim`, instala sin cache, ejecuta como `appuser` y expone `/health` como healthcheck de imagen.
+
+Los valores `infrawise_dev_only` son únicamente defaults locales y pueden reemplazarse con `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` y `DATABASE_URL`. No uses esos valores en producción ni publiques un archivo `.env`.
+
+```bash
+docker compose down       # detiene contenedores, conserva el volumen
+docker compose down -v    # elimina también datos; operación destructiva
+```
+
+---
+
+## CI
+
+El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) ejecuta en cada push a `main`/`master` y en cada pull request:
+
+1. instala Python 3.12 y dependencias bloqueadas con `uv sync --extra dev --locked`;
+2. ejecuta `ruff check .`;
+3. verifica formato con `black --check .`;
+4. ejecuta los 28 tests con cobertura de dominio, API y Mermaid;
+5. compila los módulos Python;
+6. valida `docker compose config --quiet`;
+7. construye la imagen Docker etiquetada con el SHA del commit.
+
+El workflow usa permisos mínimos de lectura, cache de uv y cancela ejecuciones obsoletas de la misma rama. El build de imagen se ejecuta en GitHub Actions, donde el daemon Docker del runner sí está disponible; en desarrollo local basta con ejecutar los mismos comandos de los quality gates.
 
 ---
 
 ## Estado del proyecto
 
-**Fase 1 de 5 completada.** El núcleo de dominio está construido, probado y documentado.
+**Fase 2 de 5 implementada.** El núcleo y la API están construidos, probados y documentados. La validación de `docker compose up` queda pendiente de ejecutar con Docker Desktop activo.
 
 | Fase | Alcance | Estado |
 | :--- | :--- | :--- |
 | 0 — Esquema | `Requirements`, `CatalogService`, `ArchSpec`, catálogo AWS, golden fixture | ✅ Hecho |
 | 1 — Rule Engine + Cost Engine | `recommend()` puro, determinista y testeado | ✅ Hecho — ver [`PHASE1_REPORT.md`](PHASE1_REPORT.md) |
-| 2 — API + diagrama | FastAPI, persistencia, `ArchSpec` → Mermaid, Docker Compose | ⬜ Pendiente |
+| 2 — API + diagrama | FastAPI, persistencia, `ArchSpec` → Mermaid, Docker Compose | 🟡 Implementada — ver [`PHASE2_REPORT.md`](PHASE2_REPORT.md) |
 | 3 — IA local | `AIExplainer` Protocol, provider Ollama, fallback de plantillas | ⬜ Pendiente |
 | 4 — Frontend | Next.js, formulario, diagrama interactivo, demo pública | ⬜ Pendiente |
-| 5 — CI/CD + Terraform export | Workflow de GitHub Actions, `ArchSpec` → `.tf` | ⬜ Pendiente |
+| 5 — CI/CD + Terraform export | Quality gates CI implementados; `ArchSpec` → `.tf` pendiente | 🟡 CI inicial implementado |
 
 > **Honestidad sobre "FinOps":** hoy no hay FinOps real. No hay ingesta de datos de consumo, ni rightsizing basado en métricas, ni forecasting. Lo que existe es un **estimador de costo declarativo** sobre precios de catálogo: la arquitectura se evalúa contra los requisitos que el usuario declara, no contra telemetría de producción. El término "FinOps" describe la dirección del proyecto, no lo que ya sabe hacer. Esto está también anotado en el [ROADMAP](ROADMAP.md#roadmap-v2--stretch--documentado-no-bloqueante).
 
-**Módulos aún vacíos** — existen como marcadores de posición, no como funcionalidad:
+**Módulos aún pendientes** — existen como marcadores de posición, no como funcionalidad:
 
 ```text
-api/main.py · diagram/mermaid.py · ai/base.py · ai/ollama_provider.py
-ai/template_provider.py · export/terraform.py · frontend/ · Dockerfile
-docker-compose.yml · .github/workflows/ci.yml
+ai/base.py · ai/ollama_provider.py · ai/template_provider.py
+export/terraform.py · frontend/
 ```
 
 ---
 
 ## Configuración
 
-El motor no lee variables de entorno ni archivos de configuración: **los requisitos son su única entrada**. Esto es deliberado, y es lo que hace que sea trivial de testear y de reproducir.
+El motor de reglas no lee variables de entorno ni archivos de configuración: **los requisitos son su única entrada**. Esto es deliberado, y es lo que hace que el dominio sea trivial de testear y reproducir. La API sí lee `DATABASE_URL` y las variables de Compose descritas abajo.
 
 | Campo de `Requirements` | Tipo | Por defecto | Restricción |
 | :--- | :--- | :--- | :--- |
@@ -610,11 +738,14 @@ El motor no lee variables de entorno ni archivos de configuración: **los requis
 | `region` | `str` | `us-east-1` | — |
 | `optimize_for` | `cost` · `performance` · `availability` · `simplicity` · `balanced` | `balanced` | — |
 
-Las variables de **entorno** aparecen recién en fases posteriores, y cada una tiene un valor por defecto que hace que la app funcione sin configurarla:
+La API usa estas variables de **entorno**. Cada una tiene un valor por defecto que permite desarrollo local sin configuración adicional:
 
 | Variable | Fase | Por defecto | Propósito |
 | :--- | :--- | :--- | :--- |
-| `DATABASE_URL` | 2 | `sqlite:///./infrawise.db` | PostgreSQL de arquitecturas guardadas |
+| `DATABASE_URL` | 2 | `sqlite:///./infrawise.db` | SQLite local o PostgreSQL de arquitecturas guardadas |
+| `POSTGRES_DB` | 2 | `infrawise` | Nombre de base en Compose |
+| `POSTGRES_USER` | 2 | `infrawise` | Usuario de PostgreSQL en Compose |
+| `POSTGRES_PASSWORD` | 2 | `infrawise_dev_only` | Credencial local; reemplazar en entornos reales |
 | `AI_PROVIDER` | 3 | `ollama` | Selecciona el provider de explicaciones |
 
 ### Ajustar el catálogo
@@ -638,11 +769,17 @@ Si agregas un servicio, el test dorado `test_matches_example_fixture` seguirá p
 | [`README.md`](README.md) | Este documento. |
 | [`ROADMAP.md`](ROADMAP.md) | Fases 0–5 con milestones, tareas y definiciones de hecho. |
 | [`PHASE1_REPORT.md`](PHASE1_REPORT.md) | Evidencia de la Fase 1: cambios, justificación, comandos ejecutados y pendientes. |
+| [`PHASE2_REPORT.md`](PHASE2_REPORT.md) | Evidencia de la Fase 2: API, persistencia, Mermaid, Docker, pruebas y limitaciones. |
 | [`schema/requirements.py`](schema/requirements.py) | La entrada del sistema y sus 4 enums. |
 | [`schema/catalog.py`](schema/catalog.py) | `CatalogService`, `PricingModel`, `ComponentCategory`. |
 | [`schema/architecture.py`](schema/architecture.py) | `ArchSpec` y sus 4 submodelos. |
 | [`engine/cost_engine.py`](engine/cost_engine.py) | `estimate_cost()` y los 3 modelos de precio. |
 | [`engine/rule_engine.py`](engine/rule_engine.py) | `filter_catalog()`, `pick_cheapest()`, `recommend()`. |
+| [`api/main.py`](api/main.py) | Endpoints FastAPI, healthcheck y manejo de errores de dominio. |
+| [`api/db.py`](api/db.py) | Engine SQLAlchemy, modelo `architectures` y sesiones. |
+| [`diagram/mermaid.py`](diagram/mermaid.py) | Serialización pura de `ArchSpec` a Mermaid. |
+| [`Dockerfile`](Dockerfile) · [`docker-compose.yml`](docker-compose.yml) | Imagen API y PostgreSQL 16 con volumen/healthcheck. |
+| [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Quality gates y build de imagen en GitHub Actions. |
 | [`tests/`](tests/) | La especificación ejecutable del dominio. |
 | [`examples/`](examples/) | Catálogo, requisitos y golden fixture. |
 | [`pyproject.toml`](pyproject.toml) | Dependencias y configuración de pytest, ruff y black. |
@@ -664,8 +801,8 @@ Si tienes alguna pregunta o feedback, ¡no dudes en escribirme!
 
 *FinOps & Cloud Architecture Advisor*
 
-`Python · Pydantic · Deterministic Engine · FastAPI · Ollama · Terraform`
+`Python · Pydantic · FastAPI · SQLAlchemy · Docker · Mermaid · Ollama · Terraform`
 
-*Fase 1 de 5 — núcleo de dominio construido y verificado*
+*Fase 2 de 5 — API y diagrama implementados; Docker pendiente de validación local*
 
 </div>

@@ -1,4 +1,4 @@
-# Local environments and Python caches
+# Python environments and generated artifacts
 .venv/
 __pycache__/
 *.py[cod]
@@ -6,8 +6,6 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
-
-# Build artifacts
 dist/
 build/
 *.egg-info/
@@ -26,7 +24,12 @@ known_hosts
 # Local database state
 *.db
 
-# OS/editor files
-.DS_Store
+# VCS/editor metadata
+.git/
+.github/
 .vscode/
 .idea/
+
+# Documentation and local reports are not required at runtime
+PHASE*_REPORT.md
+ROADMAP.md

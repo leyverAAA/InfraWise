@@ -122,7 +122,10 @@ Heurísticas simples y documentadas (no hace falta que sean sofisticadas, sí qu
 
 ---
 
-## Fase 2 — API + diagrama
+## Fase 2 — API + diagrama *(implementada; Docker pendiente de validar)*
+
+**Resultado verificado:** API FastAPI, persistencia SQLAlchemy, diagramas Mermaid, Dockerfile y Compose están implementados. La API fue probada localmente con SQLite y `docker compose config --quiet` pasó; `docker compose up` requiere iniciar Docker Desktop en el entorno.
+El detalle de cambios, decisiones y evidencia está en [`PHASE2_REPORT.md`](PHASE2_REPORT.md).
 
 **Objetivo:** exponer el Rule Engine por HTTP y convertir un `ArchSpec`
 en un diagrama que un humano pueda leer sin abrir el JSON.

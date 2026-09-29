@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install locked dependencies
+        run: uv sync --extra dev --locked
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Check formatting
+        run: uv run black --check .
+
+      - name: Run tests with coverage
+        run: uv run pytest --cov=engine --cov=api --cov=diagram --cov=schema --cov-report=term-missing -q
+
+      - name: Compile Python sources
+        run: uv run python -m compileall -q .
+
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+
+      - name: Build container
+        run: docker build --tag infrawise:${{ github.sha }} .
