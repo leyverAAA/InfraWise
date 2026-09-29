@@ -6,13 +6,13 @@
 
 **Convierte requisitos de negocio en una arquitectura Cloud justificable, reproducible y con costo estimado.**
 
-[![Fase](https://img.shields.io/badge/fase-2%20%2F%205%20implementada-4EAA25)](ROADMAP.md)
+[![Fase](https://img.shields.io/badge/fase-3%20%2F%205%20implementada-4EAA25)](ROADMAP.md)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)](pyproject.toml)
 [![FastAPI](https://img.shields.io/badge/api-FastAPI-fase%202-009688?logo=fastapi&logoColor=white)](ROADMAP.md)
 [![Terraform](https://img.shields.io/badge/export-Terraform-fase%205-844FBA?logo=terraform&logoColor=white)](ROADMAP.md)
-[![AI](https://img.shields.io/badge/ai-Ollama%20%2B%20fallback-fase%203-4EAA25)](ROADMAP.md)
+[![AI](https://img.shields.io/badge/ai-Ollama%20%2B%20template%20fallback-4EAA25)](ai/)
 [![Determinista](https://img.shields.io/badge/motor-100%25%20determinista-557C94)](engine/rule_engine.py)
-[![Tests](https://img.shields.io/badge/tests-28%20pasando-4C1?logo=pytest&logoColor=white)](tests/)
+[![Tests](https://img.shields.io/badge/tests-34%20pasando-4C1?logo=pytest&logoColor=white)](tests/)
 
 </div>
 
@@ -22,7 +22,7 @@
 
 El núcleo de dominio vive en módulos Python separados —esquema, motor de reglas y motor de costos— y se comunica mediante **modelos tipados** (`Requirements`, `CatalogService`, `ArchSpec`). La API y la persistencia son una capa externa: el dominio sigue sin llamadas de red ni SDK de proveedor, y la misma entrada produce la misma arquitectura.
 
-> **Importante:** este es un proyecto de aprendizaje en fase temprana. La Fase 2 ya expone el motor por HTTP, persiste `ArchSpec` y genera Mermaid. El README documenta lo que **realmente corre hoy** y separa explícitamente lo pendiente; la ejecución de Docker queda pendiente de validar cuando el daemon esté disponible.
+> **Importante:** este es un proyecto de aprendizaje en fase temprana. La Fase 3 ya añade explicaciones con Ollama y un fallback determinista sin red. El README documenta lo que **realmente corre hoy** y separa explícitamente lo pendiente; la ejecución de Docker queda pendiente de validar cuando el daemon esté disponible.
 
 ---
 
@@ -35,6 +35,7 @@ El núcleo de dominio vive en módulos Python separados —esquema, motor de reg
 - [Arquitectura](#arquitectura)
 - [Flujo operativo](#flujo-operativo)
 - [API HTTP](#api-http)
+- [IA local y fallback](#ia-local-y-fallback)
 - [Docker y Compose](#docker-y-compose)
 - [Tecnologías](#tecnologías)
 - [Seguridad](#seguridad)
@@ -96,8 +97,8 @@ Demostrar que un motor de arquitectura Cloud puede ser:
 │ Pydantic     │ Determinista │ 11 servicios│ API HTTP         │
 │ schemas      │ rule engine  │ catálogo AWS│ + Mermaid        │
 ├──────────────┼──────────────┼──────────────┼──────────────────┤
-│ 3 modelos    │ Presupuesto  │ ScoreCard    │ 28 tests         │
-│ de precio    │ validado     │ explicable   │ 94% coverage     │
+│ 3 modelos    │ Presupuesto  │ ScoreCard    │ 34 tests         │
+│ de precio    │ validado     │ explicable   │ 91% coverage     │
 └──────────────┴──────────────┴──────────────┴──────────────────┘
 ```
 
@@ -251,9 +252,10 @@ InfraWise/
 ├── api/db.py                      # ✅ SQLAlchemy + SQLite/PostgreSQL JSONB
 ├── diagram/mermaid.py             # ✅ FASE 2 — ArchSpec → Mermaid
 ├── ai/
-│   ├── base.py                    # ⬜ FASE 3 — AIExplainer Protocol (vacío)
-│   ├── ollama_provider.py         # ⬜ FASE 3 — Ollama local (vacío)
-│   └── template_provider.py       # ⬜ FASE 3 — fallback sin red (vacío)
+│   ├── base.py                    # ✅ AIExplainer + AIProviderUnavailable
+│   ├── ollama_provider.py         # ✅ Ollama JSON contract + timeout
+│   ├── template_provider.py       # ✅ fallback determinista en español
+│   └── factory.py                 # ✅ selección + healthcheck + fallback
 ├── export/terraform.py            # ⬜ FASE 5 — ArchSpec → .tf (vacío)
 ├── frontend/                      # ⬜ FASE 4 — Next.js (vacío)
 ├── Dockerfile                     # ✅ Python 3.12, healthcheck, usuario no root
@@ -277,7 +279,7 @@ flowchart TD
     RE --> CE["Cost Engine<br/><i>engine/cost_engine.py</i>"]
     CE --> SPEC["ArchSpec<br/><i>schema/architecture.py</i>"]
     SPEC --> DIAG["Mermaid<br/><i>diagram/</i> ✅"]
-    SPEC --> EXPL["AI Explainer<br/><i>ai/</i> ⬜"]
+    SPEC --> EXPL["AI Explainer<br/><i>ai/</i> ✅ Ollama/template"]
     SPEC --> TF["Terraform .tf<br/><i>export/</i> ⬜"]
     SPEC --> UI["Frontend<br/><i>frontend/</i> ⬜"]
     REQS -.-> API["FastAPI<br/><i>api/</i> ✅"]
@@ -297,7 +299,7 @@ Esa inmutabilidad es lo que después hace triviales dos cosas:
 flowchart LR
     Code["Cambio en código o configuración"] --> FMT["black --check<br/>ruff check"]
     FMT --> VAL["pytest -q"]
-    VAL --> COV["pytest --cov=engine --cov=api<br/>--cov=diagram --cov=schema"]
+    VAL --> COV["pytest --cov=engine --cov=api<br/>--cov=diagram --cov=schema --cov=ai"]
     COV --> COMPOSE["docker compose config"]
     COMPOSE --> IMAGE["docker build"]
     IMAGE --> GREEN{"¿Verde?"}
@@ -345,15 +347,15 @@ Si la lista viene vacía o incompleta, el problema está en los requisitos (capa
 | SQLAlchemy `>=2,<3` | Persistencia de snapshots `ArchSpec`. |
 | Uvicorn | Servidor ASGI local y de contenedor. |
 | Psycopg | Driver PostgreSQL para Compose. |
-| Pytest `>=8,<9` | Suite de 28 tests, incluido un property test con semilla fija. |
-| Pytest-cov `>=5,<6` | Reporte de cobertura de `engine`, `api`, `diagram` y `schema`. |
+| Pytest `>=8,<9` | Suite de 34 tests, incluido un property test con semilla fija. |
+| Pytest-cov `>=5,<6` | Reporte de cobertura de `engine`, `api`, `diagram`, `schema` e `ai`. |
 | Ruff `>=0.6,<1` | Lint. Reglas `E`, `F`, `I`, `UP`, `B`. Línea de 100. |
 | Black `>=24,<26` | Formato. Línea de 100, `py311`. |
 | Hatchling | Build backend del paquete `infrawise`. |
 | uv | Gestión de entorno y lockfile. |
 | Docker + Compose | Fase 2 — API + PostgreSQL reproducibles |
 | GitHub Actions | Quality gates y build de imagen |
-| Ollama | ⬜ Fase 3 — redactar las `decisions` con un modelo local |
+| Ollama | Fase 3 — explicar `decisions` con un modelo local opcional |
 | Next.js + React Flow | ⬜ Fase 4 — formulario y editor visual de arquitecturas |
 | Terraform | ⬜ Fase 5 — exportar el `ArchSpec` a `.tf` |
 
@@ -409,7 +411,7 @@ Para el resto del sistema:
 curl http://localhost:8000/health
 curl http://localhost:8000/docs
 pytest -q                                              # estado del dominio
-pytest --cov=engine --cov=api --cov=diagram --cov=schema --cov-report=term-missing   # cobertura línea por línea
+pytest --cov=engine --cov=api --cov=diagram --cov=schema --cov=ai --cov-report=term-missing   # cobertura línea por línea
 ruff check .                                          # lint
 black --check .                                       # formato
 docker compose config --quiet                         # Compose válido
@@ -421,10 +423,10 @@ docker compose config --quiet                         # Compose válido
 
 ## Testing
 
-28 tests, 94 % de cobertura sobre 334 statements. La validación de dominio y API es local, reproducible y **no requiere credenciales de AWS ni PostgreSQL para la suite**: los tests de persistencia usan SQLite en memoria.
+34 tests, 91 % de cobertura sobre 472 statements. La validación de dominio, API y providers es local y reproducible; **no requiere credenciales de AWS, PostgreSQL ni Ollama para la suite**: los tests de persistencia usan SQLite en memoria y el provider de templates no usa red.
 
 ```bash
-uv run --extra dev pytest --cov=engine --cov=api --cov=diagram --cov=schema --cov-report=term-missing -q
+uv run --extra dev pytest --cov=engine --cov=api --cov=diagram --cov=schema --cov=ai --cov-report=term-missing -q
 ```
 
 | Archivo | Qué cubre |
@@ -433,6 +435,7 @@ uv run --extra dev pytest --cov=engine --cov=api --cov=diagram --cov=schema --co
 | `tests/test_rule_engine.py` | Golden fixture, filtro por capacidad/disponibilidad, selección más barata, las 6 categorías, conexiones, cache/CDN, presupuesto insuficiente, catálogo insuficiente para `CRITICAL`, property test. |
 | `tests/test_api.py` | POST/GET, persistencia, `422` de dominio y validación, `404`, health del flujo y endpoint de diagrama. |
 | `tests/test_diagram.py` | Nodos, conexiones, encabezado Mermaid y escaping de etiquetas. |
+| `tests/test_ai.py` | Contrato de providers, prompt acotado, fallback de factory y respuestas inválidas de Ollama. |
 
 Tres pruebas merecen atención porque son la especificación ejecutable del dominio:
 
@@ -495,7 +498,7 @@ uv run python examples/_generate_examples.py
 # 3. Quality gates antes de abrir un PR
 uv run --extra dev ruff check .
 uv run --extra dev black --check .
-uv run --extra dev pytest --cov=engine --cov=api --cov=diagram --cov=schema -q
+uv run --extra dev pytest --cov=engine --cov=api --cov=diagram --cov=schema --cov=ai -q
 docker compose config --quiet
 ```
 
@@ -652,6 +655,68 @@ El payload completo del `ArchSpec` se conserva en una columna JSON/JSONB para ma
 
 ---
 
+## IA local y fallback
+
+La Fase 3 agrega explicaciones sin permitir que un modelo cambie la arquitectura calculada por el Rule Engine.
+
+```text
+ArchSpec (components + connections + factores)
+                    │
+                    ▼
+              AIExplainer
+              ┌─────┴─────┐
+              ▼           ▼
+          Ollama       Template
+        (opcional)   (determinista)
+              └─────┬─────┘
+                    ▼
+          ArchSpec + decisions
+```
+
+### Contrato de provider
+
+`ai/base.py` define `AIExplainer.explain(spec) -> list[Decision]`. El contrato exige exactamente una `Decision` por componente. Los providers solo producen explicaciones: `components`, `connections`, costos, cantidades y factores siguen perteneciendo al resultado determinista del Rule Engine.
+
+### Ollama
+
+`OllamaExplainer` utiliza por defecto:
+
+- URL: `http://localhost:11434`;
+- modelo: `llama3.2`;
+- endpoint: `/api/chat`;
+- timeout: 4 segundos, limitado al rango 3–5 segundos;
+- temperatura: `0.2`;
+- respuesta JSON validada antes de persistirse.
+
+El prompt envía únicamente los componentes y factores de decisión. El system prompt ordena explícitamente responder en español y no sugerir servicios que no estén en la arquitectura.
+
+Si Ollama devuelve un error, JSON inválido, una cantidad incorrecta de decisiones o IDs de componentes distintos, se lanza `AIProviderUnavailable` y la API usa el fallback.
+
+### Fallback determinista
+
+`TemplateExplainer` no usa red ni modelo externo. Genera razonamientos reproducibles en español a partir de la categoría, el costo y los factores ya calculados por el Rule Engine. Por eso la misma request sigue funcionando aunque Ollama esté apagado, no tenga el modelo descargado o supere el timeout.
+
+`ai/factory.py` lee `AI_PROVIDER`:
+
+| Valor | Comportamiento |
+| :--- | :--- |
+| `ollama` o vacío | Ejecuta un healthcheck y usa Ollama si responde; si no, usa templates. |
+| `template` | Usa directamente `TemplateExplainer`, útil para CI y demos sin red. |
+| Otro valor | Registra un warning y usa templates de forma segura. |
+
+Variables opcionales:
+
+```bash
+AI_PROVIDER=ollama
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2
+OLLAMA_TIMEOUT_SECONDS=4
+```
+
+La API vuelve a intentar el fallback ante una falla durante la llamada, incluso si el healthcheck inicial había sido exitoso. Las `decisions` ya generadas se persisten junto con el `ArchSpec`.
+
+---
+
 ## Docker y Compose
 
 La topología de desarrollo contiene dos servicios:
@@ -689,7 +754,7 @@ El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) ejecuta en ca
 1. instala Python 3.12 y dependencias bloqueadas con `uv sync --extra dev --locked`;
 2. ejecuta `ruff check .`;
 3. verifica formato con `black --check .`;
-4. ejecuta los 28 tests con cobertura de dominio, API y Mermaid;
+4. ejecuta los 34 tests con cobertura de dominio, API, Mermaid e IA usando `AI_PROVIDER=template` para mantener CI offline;
 5. compila los módulos Python;
 6. valida `docker compose config --quiet`;
 7. construye la imagen Docker etiquetada con el SHA del commit.
@@ -700,14 +765,14 @@ El workflow usa permisos mínimos de lectura, cache de uv y cancela ejecuciones 
 
 ## Estado del proyecto
 
-**Fase 2 de 5 implementada.** El núcleo y la API están construidos, probados y documentados. La validación de `docker compose up` queda pendiente de ejecutar con Docker Desktop activo.
+**Fase 3 de 5 implementada.** El núcleo, la API y la capa de explicaciones están construidos, probados y documentados. La validación de `docker compose up` queda pendiente de ejecutar con Docker Desktop activo.
 
 | Fase | Alcance | Estado |
 | :--- | :--- | :--- |
 | 0 — Esquema | `Requirements`, `CatalogService`, `ArchSpec`, catálogo AWS, golden fixture | ✅ Hecho |
 | 1 — Rule Engine + Cost Engine | `recommend()` puro, determinista y testeado | ✅ Hecho — ver [`PHASE1_REPORT.md`](PHASE1_REPORT.md) |
 | 2 — API + diagrama | FastAPI, persistencia, `ArchSpec` → Mermaid, Docker Compose | 🟡 Implementada — ver [`PHASE2_REPORT.md`](PHASE2_REPORT.md) |
-| 3 — IA local | `AIExplainer` Protocol, provider Ollama, fallback de plantillas | ⬜ Pendiente |
+| 3 — IA local | `AIExplainer`, Ollama opcional, fallback de templates y API integrada | 🟡 Implementada — ver [`PHASE3_REPORT.md`](PHASE3_REPORT.md) |
 | 4 — Frontend | Next.js, formulario, diagrama interactivo, demo pública | ⬜ Pendiente |
 | 5 — CI/CD + Terraform export | Quality gates CI implementados; `ArchSpec` → `.tf` pendiente | 🟡 CI inicial implementado |
 
@@ -716,7 +781,6 @@ El workflow usa permisos mínimos de lectura, cache de uv y cancela ejecuciones 
 **Módulos aún pendientes** — existen como marcadores de posición, no como funcionalidad:
 
 ```text
-ai/base.py · ai/ollama_provider.py · ai/template_provider.py
 export/terraform.py · frontend/
 ```
 
@@ -770,6 +834,7 @@ Si agregas un servicio, el test dorado `test_matches_example_fixture` seguirá p
 | [`ROADMAP.md`](ROADMAP.md) | Fases 0–5 con milestones, tareas y definiciones de hecho. |
 | [`PHASE1_REPORT.md`](PHASE1_REPORT.md) | Evidencia de la Fase 1: cambios, justificación, comandos ejecutados y pendientes. |
 | [`PHASE2_REPORT.md`](PHASE2_REPORT.md) | Evidencia de la Fase 2: API, persistencia, Mermaid, Docker, pruebas y limitaciones. |
+| [`PHASE3_REPORT.md`](PHASE3_REPORT.md) | Evidencia de la Fase 3: providers IA, contrato Ollama, fallback y API integrada. |
 | [`schema/requirements.py`](schema/requirements.py) | La entrada del sistema y sus 4 enums. |
 | [`schema/catalog.py`](schema/catalog.py) | `CatalogService`, `PricingModel`, `ComponentCategory`. |
 | [`schema/architecture.py`](schema/architecture.py) | `ArchSpec` y sus 4 submodelos. |
@@ -778,6 +843,8 @@ Si agregas un servicio, el test dorado `test_matches_example_fixture` seguirá p
 | [`api/main.py`](api/main.py) | Endpoints FastAPI, healthcheck y manejo de errores de dominio. |
 | [`api/db.py`](api/db.py) | Engine SQLAlchemy, modelo `architectures` y sesiones. |
 | [`diagram/mermaid.py`](diagram/mermaid.py) | Serialización pura de `ArchSpec` a Mermaid. |
+| [`ai/base.py`](ai/base.py) · [`ai/factory.py`](ai/factory.py) | Contrato `AIExplainer`, selección de provider y fallback. |
+| [`ai/ollama_provider.py`](ai/ollama_provider.py) · [`ai/template_provider.py`](ai/template_provider.py) | Provider Ollama validado y explicación determinista sin red. |
 | [`Dockerfile`](Dockerfile) · [`docker-compose.yml`](docker-compose.yml) | Imagen API y PostgreSQL 16 con volumen/healthcheck. |
 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Quality gates y build de imagen en GitHub Actions. |
 | [`tests/`](tests/) | La especificación ejecutable del dominio. |
@@ -803,6 +870,6 @@ Si tienes alguna pregunta o feedback, ¡no dudes en escribirme!
 
 `Python · Pydantic · FastAPI · SQLAlchemy · Docker · Mermaid · Ollama · Terraform`
 
-*Fase 2 de 5 — API y diagrama implementados; Docker pendiente de validación local*
+*Fase 3 de 5 — explicaciones Ollama/template implementadas; Docker pendiente de validación local*
 
 </div>

@@ -42,7 +42,9 @@ jobs:
         run: uv run black --check .
 
       - name: Run tests with coverage
-        run: uv run pytest --cov=engine --cov=api --cov=diagram --cov=schema --cov-report=term-missing -q
+        run: uv run pytest --cov=engine --cov=api --cov=diagram --cov=schema --cov=ai --cov-report=term-missing -q
+        env:
+          AI_PROVIDER: template
 
       - name: Compile Python sources
         run: uv run python -m compileall -q .

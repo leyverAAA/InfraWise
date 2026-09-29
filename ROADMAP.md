@@ -166,7 +166,9 @@ def to_mermaid(spec: ArchSpec) -> str: ...
 
 ---
 
-## Fase 3 — IA local para las explicaciones
+## Fase 3 — IA local para las explicaciones *(implementada; Ollama opcional)*
+
+**Resultado verificado:** `AIExplainer`, `OllamaExplainer`, `TemplateExplainer`, factory con healthcheck y fallback integrado en la API. La request sigue devolviendo `201` con Ollama apagado mediante templates deterministas. El detalle está en [`PHASE3_REPORT.md`](PHASE3_REPORT.md).
 
 **Objetivo:** llenar `decisions[]` en español, usando Ollama — sin que
 la IA toque nunca `components` ni `connections`.

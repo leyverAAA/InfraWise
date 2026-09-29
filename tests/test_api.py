@@ -7,6 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from ai.base import AIProviderUnavailable
 from api.db import Base, get_db
 from api.main import app
 
@@ -15,7 +16,8 @@ REQUIREMENTS = json.loads((EXAMPLES / "requirements.example.json").read_text(enc
 
 
 @pytest.fixture()
-def client():
+def client(monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "template")
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -41,6 +43,7 @@ def test_post_architecture_persists_and_returns_archspec(client):
     assert response.status_code == 201
     body = response.json()
     assert body["components"]
+    assert len(body["decisions"]) == len(body["components"])
     assert body["total_monthly_cost_usd"] <= REQUIREMENTS["monthly_budget_usd"]
 
     fetched = client.get(f"/architectures/{body['id']}")
@@ -82,6 +85,19 @@ def test_diagram_endpoint_returns_plain_mermaid(client):
     assert response.headers["content-type"].startswith("text/plain")
     assert response.text.startswith("graph TD")
     assert "api-1" in response.text
+
+
+def test_provider_failure_falls_back_without_failing_request(client, monkeypatch):
+    class FailingExplainer:
+        def explain(self, _spec):
+            raise AIProviderUnavailable("Ollama unavailable")
+
+    monkeypatch.setattr("api.main.get_explainer", lambda: FailingExplainer())
+
+    response = client.post("/architectures", json=REQUIREMENTS)
+
+    assert response.status_code == 201
+    assert response.json()["decisions"]
 
 
 def test_missing_architecture_diagram_returns_404(client):
