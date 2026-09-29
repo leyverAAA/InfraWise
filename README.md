@@ -669,5 +669,3 @@ Si tienes alguna pregunta o feedback, ¡no dudes en escribirme!
 *Fase 1 de 5 — núcleo de dominio construido y verificado*
 
 </div>
-#   I n f r a W i s e  
- 
