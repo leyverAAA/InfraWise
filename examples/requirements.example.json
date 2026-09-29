@@ -1,0 +1,11 @@
+{
+  "app_type": "web_api",
+  "monthly_active_users": 5000,
+  "requests_per_minute": 300,
+  "database": "postgresql",
+  "storage_gb": 50,
+  "availability": "high",
+  "monthly_budget_usd": 150,
+  "region": "us-east-1",
+  "optimize_for": "balanced"
+}

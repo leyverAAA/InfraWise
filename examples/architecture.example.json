@@ -1,0 +1,114 @@
+{
+  "id": "archspec-2026-09-28-001",
+  "provider": "aws",
+  "requirements": {
+    "app_type": "web_api",
+    "monthly_active_users": 5000,
+    "requests_per_minute": 300,
+    "database": "postgresql",
+    "storage_gb": 50,
+    "availability": "high",
+    "monthly_budget_usd": 150,
+    "region": "us-east-1",
+    "optimize_for": "balanced"
+  },
+  "components": [
+    {
+      "id": "lb-1",
+      "service_id": "aws.alb",
+      "category": "load_balancer",
+      "display_name": "Application Load Balancer",
+      "count": 1,
+      "config": {},
+      "estimated_monthly_cost_usd": 16.0
+    },
+    {
+      "id": "api-1",
+      "service_id": "aws.ec2.t3.small",
+      "category": "compute",
+      "display_name": "EC2 t3.small",
+      "count": 2,
+      "config": {
+        "multi_az": true
+      },
+      "estimated_monthly_cost_usd": 30.36
+    },
+    {
+      "id": "db-1",
+      "service_id": "aws.rds.postgres.t3.small.multiaz",
+      "category": "database",
+      "display_name": "RDS PostgreSQL db.t3.small (Multi-AZ)",
+      "count": 1,
+      "config": {
+        "engine": "postgresql",
+        "multi_az": true
+      },
+      "estimated_monthly_cost_usd": 60.0
+    },
+    {
+      "id": "storage-1",
+      "service_id": "aws.s3.standard",
+      "category": "storage",
+      "display_name": "S3 Standard",
+      "count": 1,
+      "config": {
+        "size_gb": 50
+      },
+      "estimated_monthly_cost_usd": 1.15
+    }
+  ],
+  "connections": [
+    {
+      "source": "lb-1",
+      "target": "api-1",
+      "label": "HTTP"
+    },
+    {
+      "source": "api-1",
+      "target": "db-1",
+      "label": "reads/writes"
+    },
+    {
+      "source": "api-1",
+      "target": "storage-1",
+      "label": "reads/writes"
+    }
+  ],
+  "decisions": [
+    {
+      "component_id": "api-1",
+      "reasoning": "Two t3.small instances behind the load balancer, instead of one bigger instance, because availability=HIGH rules out a single point of failure and 300 req/min fits well within two t3.small's combined ~3,000 rpm ceiling.",
+      "factors": {
+        "cost": "medium",
+        "scalability": "high",
+        "availability": "high"
+      }
+    },
+    {
+      "component_id": "db-1",
+      "reasoning": "Multi-AZ PostgreSQL is required (not optional) once availability=HIGH is set — it's the only DB option in the catalog whose min_availability is 'high'. db.t3.small was chosen over db.t3.medium because 5,000 users / 300 rpm sits well under its capacity ceiling, saving $60/month.",
+      "factors": {
+        "cost": "medium",
+        "scalability": "medium",
+        "availability": "high"
+      }
+    },
+    {
+      "component_id": "storage-1",
+      "reasoning": "S3 Standard for 50GB of object storage — no cheaper tier fits the access pattern of an active API.",
+      "factors": {
+        "cost": "low",
+        "operational_overhead": "low"
+      }
+    }
+  ],
+  "score": {
+    "cost_usd_month": 107.51,
+    "complexity": "medium",
+    "scalability": "high",
+    "availability_pct": 99.9,
+    "operational_overhead": "medium"
+  },
+  "total_monthly_cost_usd": 107.51,
+  "created_at": "2026-09-28T00:00:00+00:00"
+}
